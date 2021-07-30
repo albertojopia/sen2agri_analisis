@@ -20,6 +20,10 @@ library(leaflet)
 library(plotly)
 library(hrbrthemes)
 
+library(ggplot2)
+library(viridis)
+library(ggthemes)
+
 ```
 
 ```{r leer datos, include=FALSE}
@@ -28,7 +32,7 @@ in.vector<-"../data/shp"
 
 #in.csv<-"E:/ALBERTO/HEMERA/GITHUB/sen2agri_analisis/output/csv"
 in.csv<-"../output/csv"
-
+in.tif<-"../output/tif"
 
 #leer datos ----------------------------------------------------------------------
 #tablas
@@ -428,4 +432,95 @@ geom_line(data=clima.maiz,aes(x=fecha, y=valor, color=variables), size=0.5)+
 
 ```
 
+## Serie temporal NDVI {.tabset}
 
+### Trigo
+```{r espacial, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10, fig.height=10}
+
+#fechas ndvi
+list.files(in.tif, full.names = T, pattern = "all_dates") %>%
+  read.csv(header=FALSE)->fechas
+fechas.n18<-fechas$V1 %>% ymd()
+
+#leer tif
+list.files(in.tif, full.names = T, pattern = "ndvi_maiz") %>%
+  read_stars() %>%
+  st_set_dimensions(3, values = fechas.n18)->ndvi_maiz
+
+list.files(in.tif, full.names = T, pattern = "ndvi_trigo") %>%
+  read_stars() %>%
+  st_set_dimensions(3, values = fechas.n18)->ndvi_trigo
+
+color2<-colorRampPalette(c("#C2543C", "#D97529","#EDA813", "#F7D707", "#C6F700","#35E300", "#0EC441", "#1E9E84", 
+                           "#166D8A", "#0C2F7A"))
+#plot(ndvi_trigo,col = color2(10), breaks=seq(0,1, by=0.1), box_col = grey(1))
+
+
+ggplot() +
+  geom_stars(data = ndvi_trigo[1], aes(x, y, fill=ndvi_trigo.tif)) +
+  facet_wrap("band") +
+  scale_fill_gradientn(colours = color2(10), n.breaks=10)+
+  coord_equal() +
+  scale_x_discrete(expand=c(0,0))+
+  scale_y_discrete(expand=c(0,0))+
+  theme(legend.position = "bottom",legend.title=element_blank()) +
+  theme(legend.key.width = unit(2, "cm"))
+
+
+```
+
+### Maiz
+```{r espacial2, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10, fig.height=10}
+
+ggplot() +
+  geom_stars(data = ndvi_maiz, aes(x, y, fill=ndvi_maiz.tif)) +
+  facet_wrap("band") +
+  scale_fill_gradientn(colours = color2(10), n.breaks=10)+
+  coord_equal() +
+  scale_x_discrete(expand=c(0,0))+
+  scale_y_discrete(expand=c(0,0))+
+  theme(legend.position = "bottom", legend.title=element_blank()) +
+  theme(legend.key.width = unit(2, "cm"))
+
+
+```
+
+## NDVI promedio  {.tabset}
+
+### Trigo
+```{r espacial3, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10, fig.height=10}
+
+sum_ndvi = function(x) (sum(x, na.rm = TRUE))
+
+ndvi_trigo%>%st_apply(.,1:2, sum_ndvi)->mean_trigo
+ndvi_trigo%>%st_apply(.,1:2, mean, na.rm=T)->mean_trigo
+#plot(mean_trigo,col = color2(10), breaks=seq(0.5,0.6, by=0.01), box_col = grey(1), main=NULL)
+
+ggplot() +
+  geom_stars(data = mean_trigo, aes(x, y, fill=mean)) +
+  scale_fill_gradientn(colours = color2(10), n.breaks=10, limits=c(0.5, 0.6))+
+  coord_equal() +
+  scale_x_discrete(expand=c(0,0))+
+  scale_y_discrete(expand=c(0,0))+
+  theme(legend.position = "bottom", legend.title=element_blank()) +
+  theme(legend.key.width = unit(2, "cm"))
+
+
+```
+
+### Maiz
+```{r espacial4, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10, fig.height=10}
+
+ndvi_maiz%>%st_apply(.,1:2, mean, na.rm=T)->mean_maiz
+#plot(mean_maiz,col = color2(10), breaks=seq(0.45,0.55, by=0.01), box_col = grey(1), main=NULL)
+ggplot() +
+  geom_stars(data = mean_maiz, aes(x, y, fill=mean)) +
+  scale_fill_gradientn(colours = color2(10), n.breaks=10, limits=c(0.45, 0.55))+
+  coord_equal() +
+  scale_x_discrete(expand=c(0,0))+
+  scale_y_discrete(expand=c(0,0))+
+  theme(legend.position = "bottom",legend.title=element_blank()) +
+  theme(legend.key.width = unit(2, "cm"))
+  
+
+```
