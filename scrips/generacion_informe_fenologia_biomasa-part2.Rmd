@@ -1,0 +1,328 @@
+---
+title: "Análisis de Biomasa insitu e indices espectrales"
+author: "AJ"
+date: "18-06-2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(raster)
+library(sf)
+library(stars)
+library(dplyr)
+library(leaflet)
+library(plotly)
+library(hrbrthemes)
+
+```
+
+```{r leer datos, include=FALSE}
+
+in.vector<-"../data/shp"
+in.csv<-"../data/csv"
+
+
+#leer datos
+dir(in.csv, full.names = T, pattern = "datos_muestreo") %>%
+  read.csv(., sep=";") %>% as_tibble() %>%
+  mutate(fecha=ymd(fecha))->datos.muestreo
+
+dir(in.csv, full.names = T, pattern = "datos_feno") %>%
+  read.csv(., sep=";") %>% as_tibble() %>%
+  mutate(metric_fecha=ymd(metric_fecha))->tabla.f
+
+dir(in.csv, full.names = T, pattern = "datos_ndvi") %>%
+  read.csv(., sep=";") %>% as_tibble() %>%
+  mutate(fecha=ymd(fecha))->tabla.n
+
+dir(in.csv, full.names = T, pattern = "datos_lai") %>%
+  read.csv(., sep=";") %>% as_tibble() %>%
+  mutate(fecha=ymd(fecha))->tabla.lai
+
+# vectores
+list.files(in.vector, full.names = T, pattern="coberturas2.shp$") %>%
+  read_sf()->coberturas
+
+list.files(in.vector, full.names = T, pattern="pts_muestreo_maiz.shp$") %>%
+  read_sf() %>%
+  mutate(muestra=c(6,7,8,9,10)) %>%
+  dplyr::select("muestra")->pts_maiz
+
+list.files(in.vector, full.names = T, pattern="pts_muestreo_trigo.shp$") %>%
+  read_sf() %>%
+  mutate(muestra=c(1,2,3,4,5)) %>%
+  dplyr::select("muestra")->pts_trigo
+
+puntos<-rbind(pts_trigo,pts_maiz)
+```
+
+# Indice  {.tabset}
+## Área de estudio {.tabset}
+
+Se tienen dos predios experimentales de cultivos maíz y trigo localizados en la localidad de Villa Baviera. 
+
+En cada predio se seleccionaron 5 puntos de muestreo y se realizaron 5 campañas en la temporada, donde se cosechó la biomasa de trigo (50 cm2) y maiz (10 plantas)
+
+
+```{r map, echo=FALSE,fig.width=10,message=FALSE}
+
+puntos %>% 
+  st_transform(., crs="+proj=longlat +datum=WGS84")->puntos.map
+
+puntos.map %>%  
+  mutate(lng=st_coordinates(.)[,2], lat=st_coordinates(.)[,1]) %>%
+  as_tibble() ->puntos.map
+
+coberturas%>% 
+  filter(LC=="cultivo") %>%
+  st_transform(., crs="+proj=longlat +datum=WGS84")->coberturas.map
+
+leaflet(coberturas.map) %>%
+  addPolygons() %>%
+  addTiles() %>%
+  addMarkers(lng=puntos.map$lat, lat = puntos.map$lng, label=puntos.map$muestra) 
+
+
+```
+
+## Biomasa  {.tabset}
+
+Las cinco campañas realizadas corresponden a las fechas:
+
++ 2020-11-05
++ 2020-11-19
++ 2020-12-09
++ 2020-12-29
++ 2021-01-18
+
+
+### Trigo
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE}
+# grafico peso total
+datos.muestreo %>%
+  mutate(punto=muestra) %>%
+  filter(cultivo=="trigo") %>%
+  group_by(punto, campo, lugar, comuna, region, fecha) %>%
+  summarise(peso=sum(peso)) %>%
+  ggplot(., aes(fecha, peso))+
+  geom_col(position = "dodge") +
+   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")+
+  facet_wrap(~punto)->plot.col.trigo.total
+plot.col.trigo.total+
+  labs(title="Biomasa Total [g]")
+
+# grafico peso por estructura
+datos.muestreo %>%
+  mutate(punto=muestra) %>%
+  filter(cultivo=="trigo") %>%
+  ggplot(., aes(fecha, peso, fill=estructura))+
+  geom_col(position = "dodge") +
+  scale_fill_ipsum("Estructura") +
+  theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")+
+   scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
+  facet_wrap(~punto)->plot.col.trigo.var
+plot.col.trigo.var +
+  labs(title="Biomasa por estructura [g]")
+
+```
+
+### Maiz
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE}
+
+# grafico peso total
+datos.muestreo %>%
+  mutate(punto=muestra) %>%
+  filter(cultivo=="maiz") %>%
+  group_by(punto, campo, lugar, comuna, region, fecha) %>%
+  summarise(peso=sum(peso)) %>%
+  ggplot(., aes(fecha, peso))+
+  geom_col(position = "dodge") +
+   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")+
+  facet_wrap(~punto)->plot.col.maiz.total
+plot.col.maiz.total+
+  labs(title="Biomasa Total [g]")
+
+# grafico peso por estructura
+datos.muestreo %>%
+  mutate(punto=muestra) %>%
+  filter(cultivo=="maiz") %>%
+  ggplot(., aes(fecha, peso, fill=estructura))+
+  geom_col(position = "dodge") +
+  scale_fill_ipsum("Estructura") +
+  theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")+
+   scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
+  facet_wrap(~punto) -> plot.col.maiz.var
+plot.col.maiz.var +
+  labs(title="Biomasa por estructura [g]")
+```
+
+
+## NDVI y Fenología   {.tabset}
+
+El NDVI entrega la informacion del vigor fotosintetico de la vegetación.
+
+La fenología entrega el día del año de 4 etapas del desarrollo del cultivo:
+
++ The starting date for the growing season (t0)
++ The date of the maximum growth rate (x0)
++ The length of the maturity plateau (L)
++ The date of end of the growing season (t3)
+
+
+### Trigo
+```{r,echo=FALSE, warning=FALSE,message=FALSE, fig.width=10}
+
+tabla.f %>%
+  filter(cultivo=="trigo", band %in% c(1,2,4)) -> vertical
+tabla.f %>%
+  filter(cultivo=="trigo", band ==3) -> duracion
+
+tabla.n %>%
+  filter(cultivo=="trigo") %>%
+  ggplot(.,aes(fecha,valor, color=as.factor(punto))) + 
+  geom_line() +
+  geom_point()+
+  geom_vline( aes(xintercept =  metric_fecha),vertical, color = "gray50", linetype="dashed", na.rm=T) +
+  geom_text(aes(x=metric_fecha-5, y=0.7, label=valor), vertical, color="gray1", size=3, angle=60)+
+  geom_text(aes(x=as.Date("2020-11-15"), y=0.7, label=valor), duracion, color="gray1", size=2.5)+
+  facet_wrap(~punto) +
+  scale_color_ipsum("Puntos")+ ylab("NDVI") + #aqui se editan los nombres 
+  scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
+  theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")->nt
+
+nt+labs(title="Serie temporal de NDVI (lineas de color) y Etapas fenológicas (lineas verticales)")
+  # nt<- ggplotly(nt)
+  # nt
+
+# grafico peso + ndvi
+tabla.n %>%
+  filter(cultivo=="trigo") %>%
+  mutate(estructura="tallo")->tabla.n2
+
+plot.col.trigo.var+
+  geom_line(data=tabla.n2,aes(x=fecha, y=valor*400), size=0.5)+
+  geom_line(data=tabla.n2,aes(x=fecha, y=cndvi*50), size=0.5, color="red")+
+  facet_wrap(~punto)+
+  scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./400, name = "NDVI"))+
+  #scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
+  theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")+
+  labs(title="Serie temporal de NDVI (linea negra), NDVI acumulado (linea roja) y \n Biomasa por estructura (columnas)")
+
+plot.col.trigo.total+
+  geom_line(data=tabla.n2,aes(x=fecha, y=cndvi*125), size=0.5)+
+  facet_wrap(~punto)+
+  scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./125, name = "NDVI acumulado"))+
+  scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
+  theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom") +
+  labs(title="NDVI acumulado (linea negra) y Biomasa total (columnas)")
+
+```
+
+
+### Maíz
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10}
+
+tabla.f %>%
+  filter(cultivo=="maiz", band %in% c(1,2,4)) -> vertical.m
+tabla.f %>%
+  filter(cultivo=="maiz", band ==3) -> duracion.m
+
+
+tabla.n %>%
+  filter(valor >=0)%>%
+  filter(cultivo=="maiz") %>%
+  ggplot(.,aes(fecha,valor, color=as.factor(punto))) + 
+  geom_line() +
+  geom_point()+
+  geom_vline( aes(xintercept =  metric_fecha),vertical.m, color = "gray50", linetype="dashed", na.rm=T) +
+  geom_text(aes(x=metric_fecha-5, y=0.7, label=valor), vertical.m, color="gray1", size=3, angle=60 )+
+  geom_text(aes(x=as.Date("2021-01-15"), y=0.7, label=valor), duracion.m, color="gray1", size=3)+
+ facet_wrap(~punto) +
+  scale_color_ipsum("Puntos")+ ylab("NDVI") + #aqui se editan los nombres 
+  scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
+  theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")->nm
+nm + 
+  labs(title="Serie temporal de NDVI (lineas de color) y Etapas fenologicas (lineas verticales)")
+
+# grafico peso + ndvi
+tabla.n %>%
+  filter(cultivo=="maiz") %>%
+  mutate(estructura="tallo")->tabla.n3
+
+plot.col.maiz.var+
+  geom_line(data=tabla.n3,aes(x=fecha, y=valor*500), size=0.5)+
+  geom_line(data=tabla.n3,aes(x=fecha, y=cndvi*70), size=0.5, color="red")+
+  facet_wrap(~punto)+
+  scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./500, name = "NDVI"))+
+  #scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
+  theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom") +
+  labs(title="Serie temporal de NDVI (linea negra), NDVI acumulado (linea roja) y \n Biomasa por estructura (columnas)")
+
+
+plot.col.maiz.total+
+  geom_line(data=tabla.n3,aes(x=fecha, y=cndvi*330), size=0.5)+
+  facet_wrap(~punto)+
+  scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./330, name = "NDVI acumulado"))+
+  scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
+  theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")  +
+  labs(title="NDVI acumulado (linea negra) y Biomasa total (columnas)")
+```
+
+## LAI {.tabset}
+
+### Trigo
+```{r feno,echo=FALSE, warning=FALSE,message=FALSE, fig.width=10}
+tabla.lai %>%
+  filter(cultivo=="trigo") %>%
+  ggplot(.,aes(fecha,valor, color=as.factor(punto))) + 
+  geom_line() +
+  geom_point()+
+  facet_wrap(~punto) +
+  scale_color_ipsum("Puntos")+ ylab("LAI") + #aqui se editan los nombres 
+  scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
+  theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")->lai.t
+lai.t  +
+  labs(title="Serie temporal de LAI")
+
+lai.t+
+  geom_line(data=tabla.n2,aes(x=fecha, y=valor*3.5), size=0.5, color="red")+
+  geom_point(data=tabla.n2,aes(x=fecha, y=valor*3.5), color="red") +
+  labs(title="Serie temporal de LAI (linea de color y NDVI (linea roja)" )
+
+
+
+```
+
+### Maíz
+
+
+```{r feno2, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10}
+tabla.lai %>%
+  filter(cultivo=="maiz") %>%
+  ggplot(.,aes(fecha,valor, color=as.factor(punto))) + 
+  geom_line() +
+  geom_point()+
+  facet_wrap(~punto) +
+  scale_color_ipsum("Puntos")+ ylab("LAI") + #aqui se editan los nombres 
+  scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
+  theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")->lai.m
+lai.m +
+  labs(title="Serie temporal de LAI")
+
+lai.m+
+  geom_line(data=tabla.n3,aes(x=fecha, y=valor*3.5), size=0.5, color="red")+
+  geom_point(data=tabla.n3,aes(x=fecha, y=valor*3.5), color="red") +
+  labs(title="Serie temporal de LAI (linea de color y NDVI (linea roja)" )
+
+```
+
+
