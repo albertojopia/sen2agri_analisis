@@ -9,6 +9,7 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
 library(tidyverse)
 library(dplyr)
 library(lubridate)
@@ -28,11 +29,11 @@ library(ggthemes)
 
 ```{r leer datos, include=FALSE}
 
-in.vector<-"../data/shp"
+in.vector<-"data/shp"
 
 #in.csv<-"E:/ALBERTO/HEMERA/GITHUB/sen2agri_analisis/output/csv"
-in.csv<-"../output/csv"
-in.tif<-"../output/tif"
+in.csv<-"output/csv"
+in.tif<-"output/tif"
 
 #leer datos ----------------------------------------------------------------------
 #tablas
