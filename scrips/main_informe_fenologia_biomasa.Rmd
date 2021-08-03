@@ -29,11 +29,11 @@ library(ggthemes)
 
 ```{r leer datos, include=FALSE}
 
-in.vector<-"data/shp"
+in.vector<-"../data/shp"
 
 #in.csv<-"E:/ALBERTO/HEMERA/GITHUB/sen2agri_analisis/output/csv"
-in.csv<-"output/csv"
-in.tif<-"output/tif"
+in.csv<-"../output/csv"
+in.tif<-"../output/tif"
 
 #leer datos ----------------------------------------------------------------------
 #tablas
@@ -70,12 +70,12 @@ list.files(in.vector, full.names = T, pattern="coberturas2.shp$") %>%
 
 list.files(in.vector, full.names = T, pattern="pts_muestreo_maiz.shp$") %>%
   read_sf() %>%
-  mutate(muestra=c(6,7,8,9,10)) %>%
+  mutate(muestra=c(5,1,2,4,3)) %>%
   dplyr::select("muestra")->pts_maiz
 
 list.files(in.vector, full.names = T, pattern="pts_muestreo_trigo.shp$") %>%
   read_sf() %>%
-  mutate(muestra=c(1,2,3,4,5)) %>%
+  mutate(muestra=c(4,1,2,5,3)) %>%
   dplyr::select("muestra")->pts_trigo
 
 puntos<-rbind(pts_trigo,pts_maiz)
@@ -126,27 +126,25 @@ Las cinco campañas realizadas corresponden a las fechas:
 ```{r, echo=FALSE, warning=FALSE,message=FALSE}
 # grafico peso total
 datos.muestreo %>%
-  mutate(punto=muestra) %>%
   filter(cultivo=="trigo") %>%
-  group_by(punto, campo, lugar, comuna, region, fecha) %>%
+  group_by(muestra, campo, lugar, comuna, region, fecha) %>%
   summarise(peso=sum(peso)) %>%
   ggplot(., aes(fecha, peso))+
   geom_col(position = "dodge") +
    theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")+
-  facet_wrap(~punto)->plot.col.trigo.total
+  facet_wrap(~muestra)->plot.col.trigo.total
 plot.col.trigo.total+
   labs(title="Biomasa Total [g]")
 
 # grafico peso por estructura
 datos.muestreo %>%
-  mutate(punto=muestra) %>%
   filter(cultivo=="trigo") %>%
   ggplot(., aes(fecha, peso, fill=estructura))+
   geom_col(position = "dodge") +
   scale_fill_ipsum("Estructura") +
   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")+
    scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
-  facet_wrap(~punto)->plot.col.trigo.var
+  facet_wrap(~muestra)->plot.col.trigo.var
 plot.col.trigo.var +
   labs(title="Biomasa por estructura [g]")
 
@@ -158,27 +156,25 @@ plot.col.trigo.var +
 
 # grafico peso total
 datos.muestreo %>%
-  mutate(punto=muestra) %>%
   filter(cultivo=="maiz") %>%
-  group_by(punto, campo, lugar, comuna, region, fecha) %>%
+  group_by(muestra, campo, lugar, comuna, region, fecha) %>%
   summarise(peso=sum(peso)) %>%
   ggplot(., aes(fecha, peso))+
   geom_col(position = "dodge") +
    theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")+
-  facet_wrap(~punto)->plot.col.maiz.total
+  facet_wrap(~muestra)->plot.col.maiz.total
 plot.col.maiz.total+
   labs(title="Biomasa Total [g]")
 
 # grafico peso por estructura
 datos.muestreo %>%
-  mutate(punto=muestra) %>%
   filter(cultivo=="maiz") %>%
   ggplot(., aes(fecha, peso, fill=estructura))+
   geom_col(position = "dodge") +
   scale_fill_ipsum("Estructura") +
   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")+
    scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
-  facet_wrap(~punto) -> plot.col.maiz.var
+  facet_wrap(~muestra) -> plot.col.maiz.var
 plot.col.maiz.var +
   labs(title="Biomasa por estructura [g]")
 ```
@@ -206,14 +202,14 @@ tabla.f %>%
 
 tabla.n %>%
   filter(cultivo=="trigo") %>%
-  ggplot(.,aes(fecha,valor, color=as.factor(punto))) + 
+  ggplot(.,aes(fecha,valor, color=as.factor(muestra))) + 
   geom_line() +
   geom_point()+
   geom_vline( aes(xintercept =  metric_fecha),vertical, color = "gray50", linetype="dashed", na.rm=T) +
   geom_text(aes(x=metric_fecha-5, y=0.7, label=valor), vertical, color="gray1", size=3, angle=60)+
   geom_text(aes(x=as.Date("2020-11-15"), y=0.7, label=valor), duracion, color="gray1", size=2.5)+
-  facet_wrap(~punto) +
-  scale_color_ipsum("Puntos")+ ylab("NDVI") + #aqui se editan los nombres 
+  facet_wrap(~muestra) +
+  scale_color_ipsum("muestras")+ ylab("NDVI") + #aqui se editan los nombres 
   scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")->nt
 
@@ -229,7 +225,7 @@ tabla.n %>%
 plot.col.trigo.var+
   geom_line(data=tabla.n2,aes(x=fecha, y=valor*400), size=0.5)+
   geom_line(data=tabla.n2,aes(x=fecha, y=cndvi*50), size=0.5, color="red")+
-  facet_wrap(~punto)+
+  facet_wrap(~muestra)+
   scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./400, name = "NDVI"))+
   #scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")+
@@ -237,7 +233,7 @@ plot.col.trigo.var+
 
 plot.col.trigo.total+
   geom_line(data=tabla.n2,aes(x=fecha, y=cndvi*125), size=0.5)+
-  facet_wrap(~punto)+
+  facet_wrap(~muestra)+
   scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./125, name = "NDVI acumulado"))+
   scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom") +
@@ -259,14 +255,14 @@ tabla.f %>%
 tabla.n %>%
   filter(valor >=0)%>%
   filter(cultivo=="maiz") %>%
-  ggplot(.,aes(fecha,valor, color=as.factor(punto))) + 
+  ggplot(.,aes(fecha,valor, color=as.factor(muestra))) + 
   geom_line() +
   geom_point()+
   geom_vline( aes(xintercept =  metric_fecha),vertical.m, color = "gray50", linetype="dashed", na.rm=T) +
   geom_text(aes(x=metric_fecha-5, y=0.7, label=valor), vertical.m, color="gray1", size=3, angle=60 )+
   geom_text(aes(x=as.Date("2021-01-15"), y=0.7, label=valor), duracion.m, color="gray1", size=3)+
- facet_wrap(~punto) +
-  scale_color_ipsum("Puntos")+ ylab("NDVI") + #aqui se editan los nombres 
+ facet_wrap(~muestra) +
+  scale_color_ipsum("muestras")+ ylab("NDVI") + #aqui se editan los nombres 
   scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")->nm
 nm + 
@@ -280,7 +276,7 @@ tabla.n %>%
 plot.col.maiz.var+
   geom_line(data=tabla.n3,aes(x=fecha, y=valor*500), size=0.5)+
   geom_line(data=tabla.n3,aes(x=fecha, y=cndvi*70), size=0.5, color="red")+
-  facet_wrap(~punto)+
+  facet_wrap(~muestra)+
   scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./500, name = "NDVI"))+
   #scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom") +
@@ -289,7 +285,7 @@ plot.col.maiz.var+
 
 plot.col.maiz.total+
   geom_line(data=tabla.n3,aes(x=fecha, y=cndvi*330), size=0.5)+
-  facet_wrap(~punto)+
+  facet_wrap(~muestra)+
   scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./330, name = "NDVI acumulado"))+
   scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")  +
@@ -302,11 +298,11 @@ plot.col.maiz.total+
 ```{r feno,echo=FALSE, warning=FALSE,message=FALSE, fig.width=10}
 tabla.lai %>%
   filter(cultivo=="trigo") %>%
-  ggplot(.,aes(fecha,valor, color=as.factor(punto))) + 
+  ggplot(.,aes(fecha,valor, color=as.factor(muestra))) + 
   geom_line() +
   geom_point()+
-  facet_wrap(~punto) +
-  scale_color_ipsum("Puntos")+ ylab("LAI") + #aqui se editan los nombres 
+  facet_wrap(~muestra) +
+  scale_color_ipsum("muestras")+ ylab("LAI") + #aqui se editan los nombres 
   scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")->lai.t
 lai.t  +
@@ -327,11 +323,11 @@ lai.t+
 ```{r feno2, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10}
 tabla.lai %>%
   filter(cultivo=="maiz") %>%
-  ggplot(.,aes(fecha,valor, color=as.factor(punto))) + 
+  ggplot(.,aes(fecha,valor, color=as.factor(muestra))) + 
   geom_line() +
   geom_point()+
-  facet_wrap(~punto) +
-  scale_color_ipsum("Puntos")+ ylab("LAI") + #aqui se editan los nombres 
+  facet_wrap(~muestra) +
+  scale_color_ipsum("muestras")+ ylab("LAI") + #aqui se editan los nombres 
   scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
   theme(axis.text.x = element_text(angle=60,  hjust = 1),legend.position = "bottom")->lai.m
 lai.m +

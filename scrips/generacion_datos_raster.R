@@ -30,6 +30,9 @@ fechas.n18<-fechas$V1 %>% ymd()
 ndvi2 %>%   st_set_dimensions(3, values = fechas.n18)->ndvi2 
 ndvi2 [[1]][ndvi2 [[1]] < 0]=NA
 
+#vector
+list.files(in.vector, full.names = T, pattern="coberturas2.shp$") %>%
+  read_sf()->coberturas
 
 
 #NDVI   --------------------------------------------------------------------------------

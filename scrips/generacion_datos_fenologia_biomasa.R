@@ -39,13 +39,13 @@ list.files(in.vector, full.names = T, pattern="coberturas2.shp$") %>%
 list.files(in.vector, full.names = T, pattern="pts_muestreo_maiz.shp$") %>%
   read_sf() %>%
   st_transform(., crs=st_crs(pheno2))%>%
-  mutate(muestra=c(6,7,8,9,10)) %>% 
+  mutate(muestra=c(5,1,2,4,3)) %>%
   dplyr::select("muestra")->pts_maiz
 
 list.files(in.vector, full.names = T, pattern="pts_muestreo_trigo.shp$") %>%
   read_sf() %>%
   st_transform(., crs=st_crs(pheno2)) %>%
-  mutate(muestra=c(1,2,3,4,5)) %>%
+  mutate(muestra=c(4,1,2,5,3)) %>% 
   dplyr::select("muestra")->pts_trigo
 
 puntos<-rbind(pts_trigo,pts_maiz)
@@ -54,12 +54,14 @@ puntos<-rbind(pts_trigo,pts_maiz)
 #biomasa
 dir(in.biomasa, full.names = T, pattern = "trigo") %>%
   read.csv(., sep=";") %>% as_tibble() %>%
-  mutate(cultivo="trigo")->datos.trigo
+  mutate(cultivo="trigo") %>%
+  mutate(peso=if_else(estructura %in% c("tallo","hoja", "espiga"), peso-19.3, peso)) ->datos.trigo
 
+datos.trigo$estructura %>% unique()
 dir(in.biomasa, full.names = T,  pattern = "maiz") %>%
   read.csv(., sep=";") %>% as_tibble() %>%
   mutate(cultivo="maiz") %>%
-  mutate(muestra=muestra+5)->datos.maiz # se cambio la numeracion de las muestras
+  mutate(peso=peso-19.3)->datos.maiz
 
 
 
@@ -82,39 +84,40 @@ fechas.n18<-fechas$V1 %>% ymd()
 st_extract(pheno2,puntos) %>%
   as_tibble() %>% 
   spread(band,metric_estimation.tif )%>%
-  mutate(punto=1:10) %>% # son 5 bandas
+  inner_join(puntos)%>%
   mutate(cultivo=rep(c("trigo", "maiz"), c(5,5)), variable="feno") %>%
-  gather(band, valor, -punto, -cultivo,-geometry, -variable) %>%
+  gather(band, valor, -muestra, -cultivo,-geometry, -variable) %>%
   mutate(metric_fecha=as.Date(valor-1, origin="2020-01-01"))->tabla.f
 
 #extrarer ndvi
 ndvi2 %>%
   st_extract(.,puntos) %>%
   as_tibble() %>% 
-  spread(band,all_ndvis.tif)->ndvi3
+  spread(band,all_ndvis.tif) %>%
+  inner_join( puntos)->ndvi3
 
-names(ndvi3)<-c("geometry", as.character(fechas.n18))
+names(ndvi3)<-c("geometry", as.character(fechas.n18), "muestra")
 ndvi3[c(-11,-15)]->ndvi4 #porque hay dos fechas repetidas
 
 names(ndvi4)
 ndvi4 %>%
-  mutate(punto=1:10) %>% 
   mutate(cultivo=rep(c("trigo", "maiz"), c(5,5)), variable="ndvi") %>%
-  gather(fecha, valor, -punto, -cultivo, -geometry, -variable) %>%
+  gather(fecha, valor, -muestra, -cultivo, -geometry, -variable) %>%
   mutate(fecha=ymd(fecha)) %>%
   filter(valor>=0) %>%
-  group_by(cultivo, punto) %>%
+  group_by(cultivo, muestra) %>%
   mutate(cndvi=cumsum(valor))->tabla.n
 
 #LAI   --------------------------------------------------------------------------------
 #extraer lai
 st_extract(lai,puntos) %>%
   as_tibble() %>%
-  mutate(punto=1:10, cultivo=rep(c("trigo", "maiz"), c(5,5))) %>%
-  gather(fecha, valor, -geometry, -punto, -cultivo) %>%
+  inner_join( puntos) %>%
+  mutate(cultivo=rep(c("trigo", "maiz"), c(5,5))) %>%
+  gather(fecha, valor, -geometry, -muestra, -cultivo) %>%
   mutate(variable="lai", fecha=ymd(fecha)) %>%
   filter( valor>=0) %>%
-  group_by(cultivo, punto) %>%
+  group_by(cultivo, muestra) %>%
   mutate(clai=cumsum(valor))->tabla.lai
 
 
