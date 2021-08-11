@@ -5,17 +5,17 @@ library(raster)
 library(sf)
 library(stars)
 library(dplyr)
-library(SPEI)
-library(sirad)
-library(naniar)
+
 
 in.biomasa<-"data/biomasa"
 in.vector<-"data/shp"
 in.raster2<-"E:/ALBERTO/HEMERA/PROYECTO/sen2agri"
-out.csv<-"output/csv"
+#in.vector<-"E:/ALBERTO/HEMERA/GITHUB/sen2agri_analisis/data/shp"
+out.rds<-"output/rds"
+
 
 #Leer datos ----------------------------------------------------------------------
-#raster fenologia
+#raster ndvi y fenologia
 list.files(in.raster2, full.names = T, pattern = "l3b_ndvi_05") %>%
   list.files(., full.names = T, pattern = "metric_estimation.tif$") %>%
   read_stars()->pheno2
@@ -35,20 +35,10 @@ names(lai)<-substr(names(lai), start = 12, stop=19)
 #vectores
 list.files(in.vector, full.names = T, pattern="coberturas2.shp$") %>%
   read_sf()->coberturas
+ 
+list.files(in.vector, full.names = T, pattern="pts_muestreo.shp$") %>%
+  read_sf()-> puntos
 
-list.files(in.vector, full.names = T, pattern="pts_muestreo_maiz.shp$") %>%
-  read_sf() %>%
-  st_transform(., crs=st_crs(pheno2))%>%
-  mutate(muestra=c(5,1,2,4,3)) %>%
-  dplyr::select("muestra")->pts_maiz
-
-list.files(in.vector, full.names = T, pattern="pts_muestreo_trigo.shp$") %>%
-  read_sf() %>%
-  st_transform(., crs=st_crs(pheno2)) %>%
-  mutate(muestra=c(4,1,2,5,3)) %>% 
-  dplyr::select("muestra")->pts_trigo
-
-puntos<-rbind(pts_trigo,pts_maiz)
 
 
 #biomasa
@@ -57,7 +47,6 @@ dir(in.biomasa, full.names = T, pattern = "trigo") %>%
   mutate(cultivo="trigo") %>%
   mutate(peso=if_else(estructura %in% c("tallo","hoja", "espiga"), peso-19.3, peso)) ->datos.trigo
 
-datos.trigo$estructura %>% unique()
 dir(in.biomasa, full.names = T,  pattern = "maiz") %>%
   read.csv(., sep=";") %>% as_tibble() %>%
   mutate(cultivo="maiz") %>%
@@ -68,7 +57,10 @@ dir(in.biomasa, full.names = T,  pattern = "maiz") %>%
 #Biomasa    ---------------------------------------------------------------------------------
 names(datos.trigo)<-names(datos.maiz)
 rbind(datos.trigo,datos.maiz) %>%
-  mutate(fecha=dmy(fecha))->datos.muestreo
+  mutate(fecha=dmy(fecha)) %>%
+  inner_join(puntos) %>%
+  st_as_sf() %>%
+  select_at(., vars(-id))->datos.muestreo
 
 
 
@@ -87,8 +79,11 @@ st_extract(pheno2,puntos) %>%
   inner_join(puntos)%>%
   mutate(cultivo=rep(c("trigo", "maiz"), c(5,5)), variable="feno") %>%
   gather(band, valor, -muestra, -cultivo,-geometry, -variable) %>%
-  mutate(metric_fecha=as.Date(valor-1, origin="2020-01-01"))->tabla.f
+  mutate(metric_fecha=as.Date(valor-1, origin="2020-01-01")) %>%
+  rename(fecha=metric_fecha)%>%
+  st_as_sf()->tabla.f
 
+#NDVI -------------------------------------------------------------------------------------
 #extrarer ndvi
 ndvi2 %>%
   st_extract(.,puntos) %>%
@@ -96,35 +91,38 @@ ndvi2 %>%
   spread(band,all_ndvis.tif) %>%
   inner_join( puntos)->ndvi3
 
-names(ndvi3)<-c("geometry", as.character(fechas.n18), "muestra")
+names(ndvi3)<-c("geometry", as.character(fechas.n18), "muestra", "cultivo")
 ndvi3[c(-11,-15)]->ndvi4 #porque hay dos fechas repetidas
 
-names(ndvi4)
 ndvi4 %>%
-  mutate(cultivo=rep(c("trigo", "maiz"), c(5,5)), variable="ndvi") %>%
-  gather(fecha, valor, -muestra, -cultivo, -geometry, -variable) %>%
+  gather(fecha, ndvi, -muestra, -cultivo, -geometry) %>%
   mutate(fecha=ymd(fecha)) %>%
-  filter(valor>=0) %>%
+  filter(ndvi>=0) %>%
   group_by(cultivo, muestra) %>%
-  mutate(cndvi=cumsum(valor))->tabla.n
+  mutate(cndvi=cumsum(ndvi)) %>%
+  gather(variable, valor, -geometry, -muestra, -cultivo, -fecha) ->tabla.n
 
 #LAI   --------------------------------------------------------------------------------
 #extraer lai
 st_extract(lai,puntos) %>%
   as_tibble() %>%
   inner_join( puntos) %>%
-  mutate(cultivo=rep(c("trigo", "maiz"), c(5,5))) %>%
-  gather(fecha, valor, -geometry, -muestra, -cultivo) %>%
-  mutate(variable="lai", fecha=ymd(fecha)) %>%
-  filter( valor>=0) %>%
+  gather(fecha, lai, -geometry, -muestra, -cultivo) %>%
+  mutate(fecha=ymd(fecha)) %>%
+  filter( lai>=0) %>%
   group_by(cultivo, muestra) %>%
-  mutate(clai=cumsum(valor))->tabla.lai
+  mutate(clai=cumsum(lai)) %>%
+  gather(variable, valor, -geometry, -muestra, -cultivo, -fecha) ->tabla.lai
 
+
+#Compilacion NDVI + LAI ----------------------------------------------------------------
+
+tabla.vege<-bind_rows(tabla.lai, tabla.n) %>% st_as_sf()
 
 #Exportar datos   ----------------------------------------------------------------------
-setwd(out.csv)
-write_delim(datos.muestreo, "datos_muestreo.csv", delim = ";")
-write_delim(tabla.f, "datos_feno.csv", delim = ";" )
-write_delim(tabla.n, "datos_ndvi.csv", delim = ";")
-write_delim(tabla.lai, "datos_lai.csv", delim = ";")
+setwd(out.rds)
+write_rds(datos.muestreo, "sf_datos_muestreo.rds")
+write_rds(tabla.f, "sf_datos_feno.rds" )
+write_rds(tabla.vege, "sf_datos_vege.rds")
+
 

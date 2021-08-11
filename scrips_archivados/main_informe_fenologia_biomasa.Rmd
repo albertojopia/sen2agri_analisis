@@ -28,55 +28,51 @@ library(ggthemes)
 ```
 
 ```{r leer datos, include=FALSE}
-
-in.vector<-"../data/shp"
-
-#in.csv<-"E:/ALBERTO/HEMERA/GITHUB/sen2agri_analisis/output/csv"
-in.csv<-"../output/csv"
-in.tif<-"../output/tif"
+in.vector<-"data/shp"
+#in.rds<-"E:/ALBERTO/HEMERA/GITHUB/sen2agri_analisis/output/csv"
+in.rds<-"output/rds"
+in.tif<-"output/tif"
 
 #leer datos ----------------------------------------------------------------------
-#tablas
-dir(in.csv, full.names = T, pattern = "datos_muestreo") %>%
-  read.csv(., sep=";") %>% as_tibble() %>%
-  mutate(fecha=ymd(fecha))->datos.muestreo
 
-dir(in.csv, full.names = T, pattern = "datos_feno") %>%
-  read.csv(., sep=";") %>% as_tibble() %>%
-  mutate(metric_fecha=ymd(metric_fecha))->tabla.f
+#tibble
+dir(in.rds, full.names = T, pattern = "sf_datos_muestreo") %>%
+  read_rds() %>%
+  as_tibble() %>%
+  select_at(.,vars(-geometry))->datos.muestreo
 
-dir(in.csv, full.names = T, pattern = "datos_ndvi") %>%
-  read.csv(., sep=";") %>% as_tibble() %>%
-  mutate(fecha=ymd(fecha))->tabla.n
+dir(in.rds, full.names = T, pattern = "sf_datos_feno") %>%
+  read_rds() %>%
+  as_tibble() %>%
+  select_at(.,vars( -geometry))->tabla.f
 
-dir(in.csv, full.names = T, pattern = "datos_lai") %>%
-  read.csv(., sep=";") %>% as_tibble() %>%
-  mutate(fecha=ymd(fecha))->tabla.lai
+dir(in.rds, full.names = T, pattern = "sf_datos_vege")%>%
+  read_rds()%>%
+  as_tibble() %>%
+  select_at(.,vars(-geometry))->tabla.vege
 
-dir(in.csv, full.names = T, pattern = "clima_estado") %>%
-  read.csv(., sep=";") %>% as_tibble() %>%
-  rename(., fecha=time) %>%
-  mutate(fecha=ymd(fecha))->clima.estado
+dir(in.rds, full.names = T, pattern = "clima_estado") %>%
+  read_rds()->clima.estado
 
-dir(in.csv, full.names = T, pattern = "clima_flujo") %>%
-  read.csv(., sep=";") %>% as_tibble() %>%
-  rename(., fecha=time) %>%
-  mutate(fecha=ymd(fecha))->clima.flujo
+dir(in.rds, full.names = T, pattern = "clima_flujo") %>%
+  read_rds()->clima.flujo
 
+#stars
+list.files(in.rds, full.names = T, pattern = "stars_ndvi") %>%
+  read_rds() ->stars_ndvi
 
-#vectores
+list.files(in.rds, full.names = T, pattern = "stars_lai") %>%
+  read_rds() ->stars_lai
+
+#sf
 list.files(in.vector, full.names = T, pattern="coberturas2.shp$") %>%
   read_sf()->coberturas
 
 list.files(in.vector, full.names = T, pattern="pts_muestreo_maiz.shp$") %>%
-  read_sf() %>%
-  mutate(muestra=c(5,1,2,4,3)) %>%
-  dplyr::select("muestra")->pts_maiz
+  read_sf() ->pts_maiz
 
 list.files(in.vector, full.names = T, pattern="pts_muestreo_trigo.shp$") %>%
-  read_sf() %>%
-  mutate(muestra=c(4,1,2,5,3)) %>%
-  dplyr::select("muestra")->pts_trigo
+  read_sf()->pts_trigo
 
 puntos<-rbind(pts_trigo,pts_maiz)
 ```
@@ -195,18 +191,19 @@ La fenología entrega el día del año de 4 etapas del desarrollo del cultivo:
 ### Trigo
 ```{r,echo=FALSE, warning=FALSE,message=FALSE, fig.width=10}
 
+
 tabla.f %>%
   filter(cultivo=="trigo", band %in% c(1,2,4)) -> vertical
 tabla.f %>%
   filter(cultivo=="trigo", band ==3) -> duracion
 
-tabla.n %>%
-  filter(cultivo=="trigo") %>%
+tabla.vege %>%
+  filter(variable=="ndvi", cultivo=="trigo") %>%
   ggplot(.,aes(fecha,valor, color=as.factor(muestra))) + 
   geom_line() +
   geom_point()+
-  geom_vline( aes(xintercept =  metric_fecha),vertical, color = "gray50", linetype="dashed", na.rm=T) +
-  geom_text(aes(x=metric_fecha-5, y=0.7, label=valor), vertical, color="gray1", size=3, angle=60)+
+  geom_vline( aes(xintercept =  fecha),vertical, color = "gray50", linetype="dashed", na.rm=T) +
+  geom_text(aes(x=fecha-5, y=0.7, label=valor), vertical, color="gray1", size=3, angle=60)+
   geom_text(aes(x=as.Date("2020-11-15"), y=0.7, label=valor), duracion, color="gray1", size=2.5)+
   facet_wrap(~muestra) +
   scale_color_ipsum("muestras")+ ylab("NDVI") + #aqui se editan los nombres 
@@ -218,13 +215,17 @@ nt+labs(title="Serie temporal de NDVI (lineas de color) y Etapas fenológicas (l
   # nt
 
 # grafico peso + ndvi
-tabla.n %>%
-  filter(cultivo=="trigo") %>%
-  mutate(estructura="tallo")->tabla.n2
+tabla.vege %>%
+  filter(variable=="ndvi", cultivo=="trigo")%>%
+  mutate(estructura="tallo")->tabla.n2 #ndvi
+
+tabla.vege %>%
+  filter(variable=="cndvi", cultivo=="trigo")%>%
+  mutate(estructura="tallo")->tabla.cn2 #ndvi acumulado
 
 plot.col.trigo.var+
   geom_line(data=tabla.n2,aes(x=fecha, y=valor*400), size=0.5)+
-  geom_line(data=tabla.n2,aes(x=fecha, y=cndvi*50), size=0.5, color="red")+
+  geom_line(data=tabla.cn2,aes(x=fecha, y=valor*50), size=0.5, color="red")+
   facet_wrap(~muestra)+
   scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./400, name = "NDVI"))+
   #scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
@@ -232,7 +233,7 @@ plot.col.trigo.var+
   labs(title="Serie temporal de NDVI (linea negra), NDVI acumulado (linea roja) y \n Biomasa por estructura (columnas)")
 
 plot.col.trigo.total+
-  geom_line(data=tabla.n2,aes(x=fecha, y=cndvi*125), size=0.5)+
+  geom_line(data=tabla.cn2,aes(x=fecha, y=valor*125), size=0.5)+
   facet_wrap(~muestra)+
   scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./125, name = "NDVI acumulado"))+
   scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
@@ -251,15 +252,13 @@ tabla.f %>%
 tabla.f %>%
   filter(cultivo=="maiz", band ==3) -> duracion.m
 
-
-tabla.n %>%
-  filter(valor >=0)%>%
-  filter(cultivo=="maiz") %>%
+tabla.vege %>%
+  filter(variable=="ndvi", cultivo=="maiz") %>%
   ggplot(.,aes(fecha,valor, color=as.factor(muestra))) + 
   geom_line() +
   geom_point()+
-  geom_vline( aes(xintercept =  metric_fecha),vertical.m, color = "gray50", linetype="dashed", na.rm=T) +
-  geom_text(aes(x=metric_fecha-5, y=0.7, label=valor), vertical.m, color="gray1", size=3, angle=60 )+
+  geom_vline( aes(xintercept =fecha),vertical.m, color = "gray50", linetype="dashed", na.rm=T) +
+  geom_text(aes(x=fecha-5, y=0.7, label=valor), vertical.m, color="gray1", size=3, angle=60 )+
   geom_text(aes(x=as.Date("2021-01-15"), y=0.7, label=valor), duracion.m, color="gray1", size=3)+
  facet_wrap(~muestra) +
   scale_color_ipsum("muestras")+ ylab("NDVI") + #aqui se editan los nombres 
@@ -269,13 +268,17 @@ nm +
   labs(title="Serie temporal de NDVI (lineas de color) y Etapas fenologicas (lineas verticales)")
 
 # grafico peso + ndvi
-tabla.n %>%
-  filter(cultivo=="maiz") %>%
-  mutate(estructura="tallo")->tabla.n3
+tabla.vege %>%
+  filter(variable=="ndvi", cultivo=="maiz")%>%
+  mutate(estructura="tallo")->tabla.n3 #ndvi
+
+tabla.vege %>%
+  filter(variable=="cndvi", cultivo=="maiz")%>%
+  mutate(estructura="tallo")->tabla.cn3 #ndvi acumulado
 
 plot.col.maiz.var+
   geom_line(data=tabla.n3,aes(x=fecha, y=valor*500), size=0.5)+
-  geom_line(data=tabla.n3,aes(x=fecha, y=cndvi*70), size=0.5, color="red")+
+  geom_line(data=tabla.cn3,aes(x=fecha, y=valor*70), size=0.5, color="red")+
   facet_wrap(~muestra)+
   scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./500, name = "NDVI"))+
   #scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
@@ -284,7 +287,7 @@ plot.col.maiz.var+
 
 
 plot.col.maiz.total+
-  geom_line(data=tabla.n3,aes(x=fecha, y=cndvi*330), size=0.5)+
+  geom_line(data=tabla.cn3,aes(x=fecha, y=valor*330), size=0.5)+
   facet_wrap(~muestra)+
   scale_y_continuous("Peso [g]", sec.axis = sec_axis(~./330, name = "NDVI acumulado"))+
   scale_x_date(date_breaks="1 months",date_labels = '%b-%d')+
@@ -296,8 +299,10 @@ plot.col.maiz.total+
 
 ### Trigo
 ```{r feno,echo=FALSE, warning=FALSE,message=FALSE, fig.width=10}
-tabla.lai %>%
-  filter(cultivo=="trigo") %>%
+
+
+tabla.vege %>%
+  filter(variable=="lai", cultivo=="trigo") %>%
   ggplot(.,aes(fecha,valor, color=as.factor(muestra))) + 
   geom_line() +
   geom_point()+
@@ -321,8 +326,8 @@ lai.t+
 
 
 ```{r feno2, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10}
-tabla.lai %>%
-  filter(cultivo=="maiz") %>%
+tabla.vege %>%
+  filter(variable=="lai", cultivo=="maiz")%>% 
   ggplot(.,aes(fecha,valor, color=as.factor(muestra))) + 
   geom_line() +
   geom_point()+
@@ -348,27 +353,27 @@ lai.m+
 ```{r clima2, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10, fig.height=10}
 
 clima.estado %>%
-  group_by(cultivo,variables, fecha=floor_date(fecha, "week")) %>%
+  group_by(cultivo,variable, fecha=floor_date(fecha, "week")) %>%
   summarize(valor=mean(valor)) %>%
-  filter(variables %in% c("tmin", "tmax"))%>%
+  filter(variable %in% c("tmin", "tmax"))%>%
   mutate(grupo="Temperatura min y max") ->grupo1
 
-clima.flujo %>%
-  group_by(cultivo,variables, fecha=floor_date(fecha, "week")) %>%
-  summarize(valor=sum(valor)) %>%
-  filter(variables %in% c("wc15", "wc30", "wc45")) %>%
+clima.estado %>%
+  group_by(cultivo,variable, fecha=floor_date(fecha, "week")) %>%
+  summarize(valor=mean(valor)) %>%
+  filter(variable %in% c("wc15", "wc30", "wc45")) %>%
   mutate(grupo="Contenido de agua en suelo") ->grupo2
     
 clima.flujo %>%
-  group_by(cultivo,variables, fecha=floor_date(fecha, "week")) %>%
+  group_by(cultivo,variable, fecha=floor_date(fecha, "week")) %>%
   summarize(valor=sum(valor)) %>%
-  filter(variables %in% c("pp", "et0")) %>%
+  filter(variable %in% c("pp", "et0")) %>%
   mutate(grupo="Evapotraspiración de referencia y Precipitación")->grupo3
 
-tabla.n %>%
+tabla.vege %>%
+  filter(variable=="ndvi") %>%
   group_by(cultivo, variable, fecha)%>%
   summarise(valor=mean(valor)) %>%
-  rename(.,variables=variable) %>%
   mutate(grupo="NDVI")->grupo4
 
 datos.muestreo %>%
@@ -376,7 +381,7 @@ datos.muestreo %>%
   summarise(valor=sum(peso)) %>%
   group_by(cultivo, fecha) %>%
   summarise(valor=mean(valor)) %>%
-  mutate(variables="biomasa", grupo="biomasa")->grupo5
+  mutate(variable="biomasa", grupo="biomasa")->grupo5
 
 bind_rows(grupo1, grupo2, grupo3, grupo4)->clima
 
@@ -400,7 +405,7 @@ grupo5 %>%
 clima %>% filter(cultivo=="trigo")->clima.trigo
 
 plot.grupo5+
-geom_line(data=clima.trigo,aes(x=fecha, y=valor, color=variables), size=0.5)+
+geom_line(data=clima.trigo,aes(x=fecha, y=valor, color=variable), size=0.5)+
   facet_wrap(~grupo, scales = "free_y", ncol=1)+
   scale_color_ipsum() +
   labs(title="Meteorologia semanal")
@@ -422,7 +427,7 @@ grupo5 %>%
 clima %>% filter(cultivo=="maiz")->clima.maiz
 
 plot.grupo5.m+
-geom_line(data=clima.maiz,aes(x=fecha, y=valor, color=variables), size=0.5)+
+geom_line(data=clima.maiz,aes(x=fecha, y=valor, color=variable), size=0.5)+
   facet_wrap(~grupo, scales = "free_y", ncol=1)+
   scale_color_ipsum() +
   labs(title="Meteorologia semanal")
@@ -434,27 +439,15 @@ geom_line(data=clima.maiz,aes(x=fecha, y=valor, color=variables), size=0.5)+
 ### Trigo
 ```{r espacial, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10, fig.height=10}
 
-#fechas ndvi
-list.files(in.tif, full.names = T, pattern = "all_dates") %>%
-  read.csv(header=FALSE)->fechas
-fechas.n18<-fechas$V1 %>% ymd()
-
-#leer tif
-list.files(in.tif, full.names = T, pattern = "ndvi_maiz") %>%
-  read_stars() %>%
-  st_set_dimensions(3, values = fechas.n18)->ndvi_maiz
-
-list.files(in.tif, full.names = T, pattern = "ndvi_trigo") %>%
-  read_stars() %>%
-  st_set_dimensions(3, values = fechas.n18)->ndvi_trigo
+coberturas %>%
+  filter(LC=="cultivo", id==10) %>% st_geometry()->sf.trigo
+coberturas %>%
+  filter(LC=="cultivo", id==6) %>% st_geometry()->sf.maiz
 
 color2<-colorRampPalette(c("#C2543C", "#D97529","#EDA813", "#F7D707", "#C6F700","#35E300", "#0EC441", "#1E9E84", 
                            "#166D8A", "#0C2F7A"))
-#plot(ndvi_trigo,col = color2(10), breaks=seq(0,1, by=0.1), box_col = grey(1))
-
-
 ggplot() +
-  geom_stars(data = ndvi_trigo[1], aes(x, y, fill=ndvi_trigo.tif)) +
+  geom_stars(data = stars_ndvi[sf.trigo][1], aes(x, y, fill=all_ndvis.tif)) +
   facet_wrap("band") +
   scale_fill_gradientn(colours = color2(10), n.breaks=10)+
   coord_equal() +
@@ -470,7 +463,7 @@ ggplot() +
 ```{r espacial2, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10, fig.height=10}
 
 ggplot() +
-  geom_stars(data = ndvi_maiz, aes(x, y, fill=ndvi_maiz.tif)) +
+  geom_stars(data = stars_ndvi[sf.maiz], aes(x, y, fill=all_ndvis.tif)) +
   facet_wrap("band") +
   scale_fill_gradientn(colours = color2(10), n.breaks=10)+
   coord_equal() +
@@ -489,9 +482,8 @@ ggplot() +
 
 sum_ndvi = function(x) (sum(x, na.rm = TRUE))
 
-ndvi_trigo%>%st_apply(.,1:2, sum_ndvi)->mean_trigo
-ndvi_trigo%>%st_apply(.,1:2, mean, na.rm=T)->mean_trigo
-#plot(mean_trigo,col = color2(10), breaks=seq(0.5,0.6, by=0.01), box_col = grey(1), main=NULL)
+stars_ndvi[sf.trigo]%>%st_apply(.,1:2, sum_ndvi)->mean_trigo
+stars_ndvi[sf.trigo]%>%st_apply(.,1:2, mean, na.rm=T)->mean_trigo
 
 ggplot() +
   geom_stars(data = mean_trigo, aes(x, y, fill=mean)) +
@@ -508,8 +500,7 @@ ggplot() +
 ### Maiz
 ```{r espacial4, echo=FALSE, warning=FALSE,message=FALSE, fig.width=10, fig.height=10}
 
-ndvi_maiz%>%st_apply(.,1:2, mean, na.rm=T)->mean_maiz
-#plot(mean_maiz,col = color2(10), breaks=seq(0.45,0.55, by=0.01), box_col = grey(1), main=NULL)
+stars_ndvi[sf.maiz]%>%st_apply(.,1:2, mean, na.rm=T)->mean_maiz
 ggplot() +
   geom_stars(data = mean_maiz, aes(x, y, fill=mean)) +
   scale_fill_gradientn(colours = color2(10), n.breaks=10, limits=c(0.45, 0.55))+
