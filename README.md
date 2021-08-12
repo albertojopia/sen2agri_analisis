@@ -3,9 +3,9 @@
 Estructura de carpetas
 
 data: contiene los datos brutos a utulizar. Estos deben ser procesados para poder utilizarlos en el reporte 
-  -biomasa
-  -estacion
-  -shp
+  - biomasa
+  - estacion
+  - shp
  
 output: contiendo los datos procesados para ser utilizados en el reporte
   -rds: objetos sf, stars y tibble de las variables utilizadas en el reporte
